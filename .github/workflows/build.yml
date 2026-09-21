@@ -26,13 +26,13 @@ jobs:
         include:
           - name: macOS (Apple Silicon)
             os: macos-15
-            artifact: Notepad-macOS-AppleSilicon
+            artifact: NotepadClone-macOS-AppleSilicon
           - name: macOS (Intel)
             os: macos-15-intel
-            artifact: Notepad-macOS-Intel
+            artifact: NotepadClone-macOS-Intel
           - name: Windows
             os: windows-latest
-            artifact: Notepad-Windows
+            artifact: NotepadClone-Windows
 
     steps:
       - uses: actions/checkout@v7
@@ -46,50 +46,50 @@ jobs:
 
       - name: Check source and Tk
         run: |
-          python -m py_compile notepad.py
+          python -m py_compile notepadClone.py
           python -c "import tkinter; print('Tk', tkinter.Tcl().eval('info patchlevel'))"
 
-      # ── macOS: Notepad.app, zipped with ditto so the bundle survives the download
-      - name: Build Notepad.app
+      # ── macOS: NotepadClone.app, zipped with ditto so the bundle survives the download
+      - name: Build NotepadClone.app
         if: runner.os == 'macOS'
         run: |
-          pyinstaller --noconfirm --clean --windowed --name Notepad \
+          pyinstaller --noconfirm --clean --windowed --name NotepadClone --icon assets/icon.icns \
             --osx-bundle-identifier io.github.${{ github.repository_owner }}.notepad-py \
-            notepad.py
-          ditto -c -k --sequesterRsrc --keepParent dist/Notepad.app "${{ matrix.artifact }}.zip"
+            notepadClone.py
+          ditto -c -k --sequesterRsrc --keepParent dist/NotepadClone.app "${{ matrix.artifact }}.zip"
 
       - name: Smoke test (macOS)
         if: runner.os == 'macOS'
         run: |
-          dist/Notepad.app/Contents/MacOS/Notepad &
+          dist/NotepadClone.app/Contents/MacOS/NotepadClone &
           pid=$!
           sleep 8
           if kill -0 "$pid" 2>/dev/null; then
-            echo "Notepad.app is running"
+            echo "NotepadClone.app is running"
             kill "$pid"
           else
-            echo "::error::Notepad.app exited during startup"
+            echo "::error::NotepadClone.app exited during startup"
             exit 1
           fi
 
-      # ── Windows: single-file Notepad.exe
-      - name: Build Notepad.exe
+      # ── Windows: single-file NotepadClone.exe
+      - name: Build NotepadClone.exe
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --noconfirm --clean --windowed --onefile --name Notepad notepad.py
-          Compress-Archive -Path dist/Notepad.exe -DestinationPath "${{ matrix.artifact }}.zip"
+          pyinstaller --noconfirm --clean --windowed --onefile --name NotepadClone --icon assets/icon.ico notepadClone.py
+          Compress-Archive -Path dist/NotepadClone.exe -DestinationPath "${{ matrix.artifact }}.zip"
 
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         run: |
-          $p = Start-Process dist/Notepad.exe -PassThru
+          $p = Start-Process dist/NotepadClone.exe -PassThru
           Start-Sleep 8
           if ($p.HasExited) {
-            Write-Output "::error::Notepad.exe exited during startup (code $($p.ExitCode))"
+            Write-Output "::error::NotepadClone.exe exited during startup (code $($p.ExitCode))"
             exit 1
           }
-          Write-Output "Notepad.exe is running"
-          Get-Process Notepad -ErrorAction SilentlyContinue | Stop-Process -Force
+          Write-Output "NotepadClone.exe is running"
+          Get-Process NotepadClone -ErrorAction SilentlyContinue | Stop-Process -Force
 
       - uses: actions/upload-artifact@v7
         with:
@@ -116,6 +116,6 @@ jobs:
           find artifacts -name '*.zip' -print
           gh release create "${{ github.ref_name }}" \
             --repo "${{ github.repository }}" \
-            --title "Notepad.py ${{ github.ref_name }}" \
+            --title "NotepadClone ${{ github.ref_name }}" \
             --generate-notes \
             $(find artifacts -name '*.zip')

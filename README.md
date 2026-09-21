@@ -45,6 +45,32 @@ On macOS use Python from [python.org](https://www.python.org/downloads/) or Home
 (`brew install python-tk`). The `/usr/bin/python3` that ships with macOS uses an old Tk
 that has display bugs.
 
+## Packaged apps
+
+GitHub Actions ([build.yml](.github/workflows/build.yml)) builds a standalone app with
+PyInstaller, so Python is not needed to run it:
+
+| Download | For |
+|---|---|
+| `Notepad-macOS-AppleSilicon.zip` | Macs with an M-series chip |
+| `Notepad-macOS-Intel.zip` | Intel Macs |
+| `Notepad-Windows.zip` | Windows 10/11 (64-bit) |
+
+- Every push to `main` builds all three; they are under the run's **Artifacts** on the
+  [Actions](../../actions) tab (GitHub sign-in required, kept for 90 days).
+- Pushing a version tag publishes them on the [Releases](../../releases) page:
+
+  ```bash
+  git tag v1.0.0 && git push origin v1.0.0
+  ```
+
+The apps are not code-signed. On macOS, right-click `Notepad.app` and choose **Open** the
+first time (or run `xattr -dr com.apple.quarantine Notepad.app`). On Windows, choose
+**More info → Run anyway** if SmartScreen appears.
+
+To build locally: `pip install pyinstaller`, then
+`pyinstaller --windowed --name Notepad notepad.py` (add `--onefile` on Windows).
+
 ## Notes
 
 - Printing on macOS/Linux goes through CUPS (`lpr`) and honours the Page Setup margins,

@@ -1,0 +1,121 @@
+name: Build
+
+# - Every push / pull request: builds the apps and uploads them as workflow artifacts.
+# - Pushing a tag like v1.0.0: also publishes a GitHub Release with the apps attached.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            os: macos-15
+            artifact: Notepad-macOS-AppleSilicon
+          - name: macOS (Intel)
+            os: macos-15-intel
+            artifact: Notepad-macOS-Intel
+          - name: Windows
+            os: windows-latest
+            artifact: Notepad-Windows
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Check source and Tk
+        run: |
+          python -m py_compile notepad.py
+          python -c "import tkinter; print('Tk', tkinter.Tcl().eval('info patchlevel'))"
+
+      # ── macOS: Notepad.app, zipped with ditto so the bundle survives the download
+      - name: Build Notepad.app
+        if: runner.os == 'macOS'
+        run: |
+          pyinstaller --noconfirm --clean --windowed --name Notepad \
+            --osx-bundle-identifier io.github.${{ github.repository_owner }}.notepad-py \
+            notepad.py
+          ditto -c -k --sequesterRsrc --keepParent dist/Notepad.app "${{ matrix.artifact }}.zip"
+
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          dist/Notepad.app/Contents/MacOS/Notepad &
+          pid=$!
+          sleep 8
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "Notepad.app is running"
+            kill "$pid"
+          else
+            echo "::error::Notepad.app exited during startup"
+            exit 1
+          fi
+
+      # ── Windows: single-file Notepad.exe
+      - name: Build Notepad.exe
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --noconfirm --clean --windowed --onefile --name Notepad notepad.py
+          Compress-Archive -Path dist/Notepad.exe -DestinationPath "${{ matrix.artifact }}.zip"
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $p = Start-Process dist/Notepad.exe -PassThru
+          Start-Sleep 8
+          if ($p.HasExited) {
+            Write-Output "::error::Notepad.exe exited during startup (code $($p.ExitCode))"
+            exit 1
+          }
+          Write-Output "Notepad.exe is running"
+          Get-Process Notepad -ErrorAction SilentlyContinue | Stop-Process -Force
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          find artifacts -name '*.zip' -print
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "Notepad.py ${{ github.ref_name }}" \
+            --generate-notes \
+            $(find artifacts -name '*.zip')

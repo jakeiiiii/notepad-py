@@ -850,7 +850,15 @@ class Notepad:
             self._set_document("", None, "UTF-8", DEFAULT_EOL)
 
     def new_window(self):
-        subprocess.Popen([sys.executable, os.path.abspath(__file__)])
+        if not getattr(sys, "frozen", False):
+            command = [sys.executable, os.path.abspath(__file__)]
+        elif IS_MAC and ".app/Contents/MacOS" in sys.executable:
+            # Packaged app: Notepad.app/Contents/MacOS/Notepad -> open a new instance
+            bundle = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+            command = ["open", "-n", bundle]
+        else:
+            command = [sys.executable]
+        subprocess.Popen(command)
 
     def _filetypes(self):
         return [("Text Documents", "*.txt"), ("All Files", "*" if IS_MAC else "*.*")]

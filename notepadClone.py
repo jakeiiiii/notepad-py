@@ -1175,6 +1175,10 @@ class Notepad:
         text.bind(f"<{MOD}-Button-4>", lambda e: self._bind_result(self.zoom_in))
         text.bind(f"<{MOD}-Button-5>", lambda e: self._bind_result(self.zoom_out))
 
+        text.bind("<Tab>", lambda e: self._indent_selection())
+        text.bind("<Shift-Tab>", lambda e: self._unindent_selection())
+        text.bind("<ISO_Left_Tab>", lambda e: self._unindent_selection())  # X11 Shift+Tab
+
     @staticmethod
     def _bind_result(func):
         func()
@@ -1629,6 +1633,63 @@ class Notepad:
         query = self._selected_text().strip()
         if query:
             webbrowser.open("https://www.bing.com/search?q=" + urllib.parse.quote_plus(query))
+
+    def _indent_selection(self):
+        """Tab on a multi-line selection: add a tab at the start of each line."""
+        text = self.text
+        if not self._has_selection():
+            return None  # let default Tab insert a tab character
+        start_line = int(text.index(tk.SEL_FIRST).split(".")[0])
+        end_index = text.index(tk.SEL_LAST)
+        end_line = int(end_index.split(".")[0])
+        if int(end_index.split(".")[1]) == 0 and end_line > start_line:
+            end_line -= 1
+        if start_line == end_line:
+            return None  # single-line selection: let default Tab replace it
+        text.config(autoseparators=False)
+        text.edit_separator()
+        for line in range(start_line, end_line + 1):
+            text.insert(f"{line}.0", "\t")
+        text.edit_separator()
+        text.config(autoseparators=True)
+        text.tag_add(tk.SEL, f"{start_line}.0", f"{end_line}.end")
+        self._touch()
+        return "break"
+
+    def _unindent_selection(self):
+        """Shift-Tab: remove one level of indentation from each selected line."""
+        text = self.text
+        if self._has_selection():
+            start_line = int(text.index(tk.SEL_FIRST).split(".")[0])
+            end_index = text.index(tk.SEL_LAST)
+            end_line = int(end_index.split(".")[0])
+            if int(end_index.split(".")[1]) == 0 and end_line > start_line:
+                end_line -= 1
+            had_selection = True
+        else:
+            start_line = end_line = int(text.index(tk.INSERT).split(".")[0])
+            had_selection = False
+        text.config(autoseparators=False)
+        text.edit_separator()
+        for line in range(start_line, end_line + 1):
+            if text.get(f"{line}.0", f"{line}.1") == "\t":
+                text.delete(f"{line}.0", f"{line}.1")
+            else:
+                # Remove up to 4 leading spaces (one tab-stop worth)
+                spaces = 0
+                for _ in range(4):
+                    if text.get(f"{line}.{spaces}", f"{line}.{spaces + 1}") == " ":
+                        spaces += 1
+                    else:
+                        break
+                if spaces:
+                    text.delete(f"{line}.0", f"{line}.{spaces}")
+        text.edit_separator()
+        text.config(autoseparators=True)
+        if had_selection:
+            text.tag_add(tk.SEL, f"{start_line}.0", f"{end_line}.end")
+        self._touch()
+        return "break"
 
     def go_to(self):
         GoToDialog(self)

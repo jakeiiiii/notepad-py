@@ -101,6 +101,7 @@ DEFAULT_SETTINGS = {
     "word_wrap": False,
     "status_bar": True,
     "restore_session": True,
+    "tab_size": 8,
     "geometry": "900x600",
     "header": "&f",
     "footer": "Page &p",
@@ -211,7 +212,7 @@ def paginate(text: str, filename: str, settings: dict, cpi=10, lpi=6) -> str:
 
     lines = []
     for line in text.split("\n"):
-        line = line.expandtabs(8)
+        line = line.expandtabs(settings.get("tab_size", 8))
         while len(line) > cols:
             lines.append(line[:cols])
             line = line[cols:]
@@ -1077,6 +1078,14 @@ class Notepad:
             label="Word Wrap", variable=self.wrap_var, command=self._toggle_word_wrap
         )
         format_menu.add_command(label="Font...", command=self.choose_font)
+        tab_menu = tk.Menu(format_menu, tearoff=False)
+        self.tab_size_var = tk.IntVar(value=self.settings["tab_size"])
+        for size in (2, 4, 8):
+            tab_menu.add_radiobutton(
+                label=f"{size} spaces", variable=self.tab_size_var, value=size,
+                command=self._apply_tab_size,
+            )
+        format_menu.add_cascade(label="Tab Size", menu=tab_menu)
         menubar.add_cascade(label="Format", menu=format_menu)
 
         view_menu = tk.Menu(menubar, tearoff=False)
@@ -1189,7 +1198,7 @@ class Notepad:
     def new_tab(self, select=True) -> Document:
         doc = Document(self)
         doc.apply_word_wrap(self.settings["word_wrap"])
-        doc.text.config(tabs=(self.font.measure("0" * 8),))
+        doc.text.config(tabs=(self.font.measure("0" * self.settings["tab_size"]),))
         self._bind_keys(doc.text)
         doc.text.bind("<<Modified>>", lambda e: self._on_modified(doc))
         for event in ("<KeyRelease>", "<ButtonRelease-1>", "<B1-Motion>"):
@@ -1807,7 +1816,7 @@ class Notepad:
             slant="italic" if "Italic" in style else "roman",
         )
         for doc in self.docs:
-            doc.text.config(tabs=(self.font.measure("0" * 8),))  # 8-column tab stops
+            doc.text.config(tabs=(self.font.measure("0" * self.settings["tab_size"]),))
         self.update_status()
 
     def choose_font(self):
@@ -1821,6 +1830,10 @@ class Notepad:
         self.settings["word_wrap"] = self.wrap_var.get()
         for doc in self.docs:
             doc.apply_word_wrap(self.settings["word_wrap"])
+
+    def _apply_tab_size(self):
+        self.settings["tab_size"] = self.tab_size_var.get()
+        self._apply_font()
 
     # ── View menu ────────────────────────────────────────────────
 
